@@ -19,7 +19,7 @@
  @property(readonly, nonatomic) FlutterResult result;
  @property(readonly, nonatomic) CMMotionManager *motionManager;
  @property(readonly, nonatomic) AVCaptureDevicePosition cameraPosition;
- 
+
  - initWithPath:(NSString *)filename
              result:(FlutterResult)result
       motionManager:(CMMotionManager *)motionManager
@@ -185,6 +185,7 @@
  @property(assign, nonatomic) BOOL audioIsDisconnected;
  @property(assign, nonatomic) BOOL isAudioSetup;
  @property(assign, nonatomic) BOOL isStreamingImages;
+ @property(assign, nonatomic) BOOL isTorchEnabled;
  @property(assign, nonatomic) ResolutionPreset resolutionPreset;
  @property(assign, nonatomic) CMTime lastVideoSampleTime;
  @property(assign, nonatomic) CMTime lastAudioSampleTime;
@@ -676,6 +677,7 @@
    }
  }
 
+
  - (void)stopImageStream {
    if (_isStreamingImages) {
      _isStreamingImages = NO;
@@ -685,7 +687,31 @@
          @{@"event" : @"error", @"errorDescription" : @"Images from camera are not streaming!"});
    }
  }
-
+- (void)toggleTorch:(bool)enabled:(FlutterResult)result:(AVCaptureDevice *)device {
+  NSLog(@"[toggleTorch] Calling  with enabled: %s _isTorchEnabled: %s",
+        enabled == true ? "true" : "false", _isTorchEnabled == true ? "true" : "false");
+  if ([device hasTorch]) {
+    [device lockForConfiguration:nil];
+    if (!enabled) {
+      [device setTorchMode:AVCaptureTorchModeOff];
+      _isTorchEnabled = false;
+      result(nil);
+    } else {
+      NSError *anyError;
+      BOOL success = [device setTorchModeOnWithLevel:AVCaptureMaxAvailableTorchLevel
+                                               error:&anyError];
+      [device unlockForConfiguration];
+      if (!success) {
+        result(getFlutterError(anyError));
+      } else {
+        _isTorchEnabled = true;
+        result(nil);
+      }
+    }
+  } else {
+    result([FlutterError errorWithCode:@"UNAVAILABLE" message:@"Torch is unavailable" details:nil]);
+  }
+}
  - (BOOL)setupWriterForPath:(NSString *)path {
    NSError *error = nil;
    NSURL *outputURL;
@@ -742,6 +768,13 @@
      [_videoWriter addInput:_audioWriterInput];
      [_audioOutput setSampleBufferDelegate:self queue:_dispatchQueue];
    }
+// When starting video capture the torch will be turned off, so re-enable it here so it's started
+  // in time for recording to start.
+  if (_isTorchEnabled) {
+    [self.captureDevice lockForConfiguration:nil];
+    [self.captureDevice setTorchModeOnWithLevel:AVCaptureMaxAvailableTorchLevel error:nil];
+    [self.captureDevice unlockForConfiguration];
+  }
 
    [_videoWriter addInput:_videoWriterInput];
    [_captureVideoOutput setSampleBufferDelegate:self queue:_dispatchQueue];
@@ -845,6 +878,16 @@
        }];
      }
      result(reply);
+     } else if ([@"enableTorch" isEqualToString:call.method]) {
+         [_camera toggleTorch:true:result:_camera.captureDevice];
+     } else if ([@"disableTorch" isEqualToString:call.method]) {
+         [_camera toggleTorch:false:result:_camera.captureDevice];
+     } else if ([@"hasTorch" isEqualToString:call.method]) {
+         if ([_camera.captureDevice hasTorch]) {
+           result(@(YES));
+          } else {
+           result(@(NO));
+          }
    } else if ([@"initialize" isEqualToString:call.method]) {
      NSString *cameraName = call.arguments[@"cameraName"];
      NSString *resolutionPreset = call.arguments[@"resolutionPreset"];
