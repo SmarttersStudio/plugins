@@ -43,7 +43,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   VideoPlayerController videoController;
   VoidCallback videoPlayerListener;
   bool enableAudio = true;
-
+  bool enableTorch = false;
+  bool torchSupported = false;
   @override
   void initState() {
     super.initState();
@@ -102,7 +103,12 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
             ),
           ),
           _captureControlRowWidget(),
-          _toggleAudioWidget(),
+          Row(
+            children: [
+              _toggleAudioWidget(),
+              _toggleTorchWidget(),
+            ],
+          ),
           Padding(
             padding: const EdgeInsets.all(5.0),
             child: Row(
@@ -154,6 +160,36 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
             },
           ),
         ],
+      ),
+    );
+  }
+
+  /// Toggle torch mode
+  Widget _toggleTorchWidget() {
+    return Opacity(
+      opacity: torchSupported ? 1.0 : 0.2,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 25),
+        child: Row(
+          children: <Widget>[
+            const Text('Toggle Torch:'),
+            Switch(
+              value: enableTorch,
+              onChanged: (bool value) async {
+                if (controller == null || !torchSupported) {
+                  return;
+                }
+
+                setState(() => enableTorch = value);
+                if (enableTorch) {
+                  await controller.enableTorch();
+                } else {
+                  await controller.disableTorch();
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -237,7 +273,17 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
                   controller.value.isRecordingVideo
               ? onStopButtonPressed
               : null,
-        )
+        ),
+        IconButton(
+          icon: const Icon(Icons.zoom_in),
+          color: Colors.blue,
+          onPressed: controller != null ? onZoomInButtonPressed : null,
+        ),
+        IconButton(
+          icon: const Icon(Icons.zoom_out),
+          color: Colors.blue,
+          onPressed: controller != null ? onZoomOutButtonPressed : null,
+        ),
       ],
     );
   }
@@ -278,6 +324,7 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
   void onNewCameraSelected(CameraDescription cameraDescription) async {
     if (controller != null) {
       await controller.dispose();
+      setState(() => enableTorch = false);
     }
     controller = CameraController(
       cameraDescription,
@@ -295,6 +342,8 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
 
     try {
       await controller.initialize();
+      final hasTorch = await controller.hasTorch();
+      setState(() => torchSupported = hasTorch);
     } on CameraException catch (e) {
       _showCameraException(e);
     }
@@ -329,6 +378,20 @@ class _CameraExampleHomeState extends State<CameraExampleHome>
       if (mounted) setState(() {});
       showInSnackBar('Video recorded to: $videoPath');
     });
+  }
+
+  void onZoomInButtonPressed() {
+    if (controller == null) {
+      return;
+    }
+    controller.zoomIn();
+  }
+
+  void onZoomOutButtonPressed() {
+    if (controller == null) {
+      return;
+    }
+    controller.zoomOut();
   }
 
   void onPauseButtonPressed() {
