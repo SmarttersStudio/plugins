@@ -304,6 +304,9 @@ public class Camera {
     // Create a new capture builder.
     captureRequestBuilder = cameraDevice.createCaptureRequest(templateType);
 
+    captureRequestBuilder.set(CaptureRequest.CONTROL_EFFECT_MODE,CaptureRequest.CONTROL_EFFECT_MODE_SEPIA);
+
+
     // When starting a video recording, re-enable flash torch if we had it enabled before starting
     if (torchEnabled) {
       captureRequestBuilder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
@@ -336,6 +339,7 @@ public class Camera {
             cameraCaptureSession = session;
             captureRequestBuilder.set(
               CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
+
             setScalerCropRegion(captureRequestBuilder, zoom);
             cameraCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, null);
             if (onSuccessCallback != null) {
@@ -438,6 +442,9 @@ public class Camera {
   }
 
   public void startPreview() throws CameraAccessException {
+    if (pictureImageReader == null) {
+      return;
+    }
     createCaptureSession(CameraDevice.TEMPLATE_PREVIEW, pictureImageReader.getSurface());
   }
 
